@@ -96,4 +96,15 @@ Additionally, we added a restart policy in the Docker Compose file to automatica
 
 In the Kubernetes environment, this change aligned perfectly with Kubernetes’ native restart mechanism. When the Node.js process exits, the Pod automatically restarts, ensuring continuous availability.
 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
+SSH in WSL2
+Date: 27/10/25
+In wsl2, i was facing issue while ssh into ec2 with pem key.
+So, following steps will help.
+1) You have pem file.
+2) use this command to move into /.ssh
+mkdir -p ~/.ssh
+cp /mnt/c/filelocation ~/.ssh/
+3) SSH will reject the key if it’s too open. So set strict permissions:
+chmod 600 ~/.ssh/file.pem
+4) ssh -i ~/.ssh/file.pem ubuntu@<your-ec2-public-ip>
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------
