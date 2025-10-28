@@ -1,4 +1,4 @@
-Providing Destination IPs for Internal or VPN-Based Integrations
+Providing Destination IPs for Internal or VPN-Based Integrations in Kubernetes
 When an external partner or internal team requests “the destination IP for a given endpoint or application”, this guide explains how to identify, expose, and securely share the correct internal endpoint, 
 especially when your service is hosted in a Kubernetes cluster (e.g., EKS).
 
