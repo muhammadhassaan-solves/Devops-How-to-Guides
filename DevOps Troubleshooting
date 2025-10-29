@@ -98,6 +98,7 @@ In the Kubernetes environment, this change aligned perfectly with Kubernetes’ 
 -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 SSH in WSL2
 Date: 27/10/25
+
 In wsl2, i was facing issue while ssh into ec2 with pem key.
 So, following steps will help.
 1) You have pem file.
@@ -108,3 +109,76 @@ cp /mnt/c/filelocation ~/.ssh/
 chmod 600 ~/.ssh/file.pem
 4) ssh -i ~/.ssh/file.pem ubuntu@<your-ec2-public-ip>
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Frontend Unreachable (502 Bad Gateway)
+Date: 29/10/2025
+
+Problem:
+Accessing the application’s frontend via its public URL returned a 502 Bad Gateway error, 
+even though the container and NGINX services were running without visible issues.
+
+Root Cause:
+The issue occurred because the container’s internal application port did not match the one defined in NGINX. 
+(previously, the issue was that app serves on /)
+
+Solution:
+Verified which port the application was listening on inside the container:
+docker exec -it <container_id> bash -c "apt update -y && apt install -y net-tools lsof > /dev/null 2>&1 && (netstat -tulpn || lsof -i -P -n | grep LISTEN)"
+Identified the correct port (8080) and recreated the container with updated port mapping.
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------
+For RAGPOC APP the server wasn't working as required. Latency issues, disk issues and memory issues and one time it os got affected.
+Date: 29/10/2025
+
+Problem:
+For RAGPOC APP the server wasn't working as required. Latency issues, disk issues and memory issues and one time it os got affected. api request taking too much time
+
+Root Cause:
+1 GB availble ram 
+containers was crashing
+image pull issues
+slow requrest
+onces it affected the os 
+
+Solution:
+Change instance type higher one with more memeory, cpu and networking.
+Stop the Instance
+
+Select your instance.
+Click Instance state → Stop instance.
+Wait until the state becomes stopped.
+
+Change Instance Type
+With the instance selected → Click Actions → Instance settings → Change instance type.
+From the dropdown, choose a larger instance type (e.g., t3.medium → t3.large or m5.large → m5.xlarge).
+Start the Instance
+
+Click Instance state → Start instance.
+The instance will boot up with the new size (more CPU, RAM, or network performance).
+ 
+2. Identify Your Volume
+
+Go to EC2 Console → Volumes (under “Elastic Block Store”).
+Find the volume attached to your instance (check the “Attachment Information” column).
+
+Modify the Volume
+
+Select your volume.
+Click Actions → Modify volume.
+
+Increase the Size (e.g., from 30 GB → 100 GB).
+You can also change volume type (e.g., gp2 → gp3 for better performance and lower cost).
+
+Grow the Partition
+sudo growpart /dev/nvme0n1 1
+
+Resize the Filesystem
+df -hT /
+
+If it shows xfs, then:
+sudo xfs_growfs -d /
+If it shows ext4, then:
+sudo resize2fs /dev/nvme0n1p1
+df -h
+
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/nvme0n1p1  200G   67G  133G  34% /
+
