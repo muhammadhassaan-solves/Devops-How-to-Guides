@@ -1,0 +1,134 @@
+1. Create EFS CSI IAM Policy
+
+This policy allows EKS to manage EFS mounts.
+
+cat > efs-csi-prod-policy.json <<EOF
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "elasticfilesystem:DescribeAccessPoints",
+                "elasticfilesystem:DescribeFileSystems"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "elasticfilesystem:CreateAccessPoint"
+            ],
+            "Resource": "*",
+            "Condition": {
+                "StringLike": {
+                    "aws:RequestTag/efs.csi.aws.com/cluster": "true"
+                }
+            }
+        },
+        {
+            "Effect": "Allow",
+            "Action": "elasticfilesystem:DeleteAccessPoint",
+            "Resource": "*",
+            "Condition": {
+                "StringEquals": {
+                    "aws:ResourceTag/efs.csi.aws.com/cluster": "true"
+                }
+            }
+        }
+    ]
+}
+EOF
+
+
+2. Create the policy
+aws iam create-policy \
+  --policy-name AmazonEKS_EFS_CSI_Driver_Prod \
+  --policy-document file://efs-csi-prod-policy.json
+
+3. Create Service Account
+
+eksctl create iamserviceaccount \
+  --name efs-csi-controller-sa \
+  --namespace kube-system \
+  --cluster <cluster-name> \
+  --attach-policy-arn <arn> \
+  --approve \
+  --region <region-name>
+
+4. Install the EFS CSI Driver (Official AWS Image)
+
+Add the repo:
+
+helm repo add aws-efs-csi-driver https://kubernetes-sigs.github.io/aws-efs-csi-driver/
+helm repo update
+
+Install the driver (using the service account we created):
+
+helm upgrade -i aws-efs-csi-driver aws-efs-csi-driver/aws-efs-csi-driver \
+  --namespace kube-system \
+  --set controller.serviceAccount.create=false \
+  --set controller.serviceAccount.name=efs-csi-controller-sa
+
+Check status:
+
+kubectl get pods -n kube-system | grep efs
+
+5. Create an Encrypted EFS
+
+Run this command:
+
+aws efs create-file-system \
+  --region <region-name> \
+  --performance-mode generalPurpose \
+  --throughput-mode bursting \
+  --encrypted \
+  --tags Key=Name,Value=<efs-name>
+
+
+6. Create a Security Group for EFS
+aws ec2 create-security-group \
+  --group-name efs-sg-prod \
+  --description "EFS access for EKS nodes" \
+  --vpc-id <vpc-id> \
+  --region <region-name>
+
+
+
+7. Allow inbound NFS (TCP 2049) from your EKS node group SG:
+
+aws ec2 authorize-security-group-ingress \
+  --group-id <efssg-id> \
+  --protocol tcp \
+  --port 2049 \
+  --source-group <EKS_NODE_SG_ID> \  #ClusterSharedNodeSecurityGroup
+  --region <region-name>
+
+8. Create Mount Targets (one per AZ)
+
+Pick your private subnets, one per AZ. Example:
+
+subnet-aaa (AZ a)
+subnet-bbb (AZ b)
+subnet-ccc (AZ c)
+
+
+For each subnet:
+
+aws efs create-mount-target \
+  --file-system-id <efs-name> \
+  --subnet-id subnet-aaa \
+  --security-groups <efssg-id> \
+  --region <region-name>
+
+aws efs create-mount-target \
+  --file-system-id <efs-name> \
+  --subnet-id subnet-bbb \
+  --security-groups <efssg-id> \
+  --region <region-name>
+
+aws efs create-mount-target \
+  --file-system-id <efs-name> \
+  --subnet-id subnet-ccc \
+  --security-groups <efssg-id> \
+  --region <region-name>
