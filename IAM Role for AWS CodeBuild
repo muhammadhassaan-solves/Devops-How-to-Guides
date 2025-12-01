@@ -1,0 +1,62 @@
+(It's an overprivileged IAM role one. Kindly improve it as well before using)
+
+1. Create the IAM Role
+aws iam create-role \
+  --role-name x-codebuild-role \
+  --assume-role-policy-document '{
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Principal": { "Service": "codebuild.amazonaws.com" },
+        "Action": "sts:AssumeRole"
+      }
+    ]
+  }'
+
+2. Attach Managed Policies (pre-defined AWS policies)
+aws iam attach-role-policy \
+  --role-name x-codebuild-role \
+  --policy-arn arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPowerUser
+
+aws iam attach-role-policy \
+  --role-name x-codebuild-role \
+  --policy-arn arn:aws:iam::aws:policy/AWSCodeCommitFullAccess
+
+aws iam attach-role-policy \
+  --role-name x-codebuild-role \
+  --policy-arn arn:aws:iam::aws:policy/CloudWatchLogsFullAccess
+
+aws iam attach-role-policy \
+  --role-name x-codebuild-role \
+  --policy-arn arn:aws:iam::aws:policy/SecretsManagerReadWrite
+
+3. Add Inline Policies (custom fine-grained permissions)
+ECR Access (explicit repo list)
+aws iam put-role-policy \
+  --role-name x-codebuild-role \
+  --policy-name ECRAccess \
+  --policy-document '{
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Action": [
+          "ecr:GetAuthorizationToken",
+          "ecr:BatchCheckLayerAvailability",
+          "ecr:PutImage",
+          "ecr:InitiateLayerUpload",
+          "ecr:UploadLayerPart",
+          "ecr:CompleteLayerUpload",
+          "ecr:DescribeRepositories"
+        ],
+        "Resource": [
+          "<repo-arn>",
+          "<repo-arn>",
+          "<repo-arn>",
+          "<repo-arn>",
+          "<repo-arn>"
+        ]
+      }
+    ]
+  }'
