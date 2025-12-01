@@ -1,4 +1,26 @@
+---------------------------------------------------------------------------------------------------------------------------------------------------------------
+11. I was facing 403 error after kubernetes deployment
+Date: 24/11/2025
+After hours of troubleshooting, I found that that the client security team added our alb to waf. So, the issue was oversize handling by AWS managed rules on aws.
 
+following ai-assisted research helped me.
+
+a. helm upgrade nginx-ingress ingress-nginx/ingress-nginx -n ingress-nginx \
+  --reuse-values \
+  --set controller.config.use-forwarded-headers="true" \
+  --set controller.config.real-ip-header="X-Forwarded-For" \
+  --set controller.config.set-real-ip-from="0.0.0.0/0" #for prod need to specify
+
+b. Change WAF "Oversize Handling" (Most Critical)
+You need to tell AWS WAF what to do when the request is larger than it can inspect.
+Go to the AWS Console > WAF & Shield > Web ACLs.
+Select the Web ACL attached to your ALB.
+Go to the Rules tab.
+If you are using AWS Managed Rules (like AWSManagedRulesCommonRuleSet or SQLi):
+Edit the rule set.
+Look for "Oversize handling" configurations.
+Set the action to "Continue" (instead of Block/Match) for requests that exceed the inspection limit.
+Note: This means WAF inspects the first 8KB, checks for attacks, and if clean, lets the rest of the 800KB pass through blindly.
 ---------------------------------------------------------------------------------------------------------------------------------------------
 10. The client requirement was that they need to inspect east-west traffic inspection inside private subnets where worker nodes are deployed.
 Date: 13/10/2025
