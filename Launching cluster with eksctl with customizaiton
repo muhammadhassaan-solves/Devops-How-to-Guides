@@ -22,3 +22,5 @@ managedNodeGroups:
     labels: { role: worker }
     tags:
       Name: X-production-node
+
+eksctl create cluster -f cluster-config.yaml  
