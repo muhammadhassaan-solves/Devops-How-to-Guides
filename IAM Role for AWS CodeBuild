@@ -1,4 +1,5 @@
-(It's an overprivileged IAM role one. Kindly improve it as well before using)
+The following IAM configuration is functional but may grant broader permissions than necessary for strict production security. 
+Always review and reduce privileges based on the principle of least privilege (PoLP) before deploying into a production environment.
 
 1. Create the IAM Role
 aws iam create-role \
@@ -60,3 +61,54 @@ aws iam put-role-policy \
       }
     ]
   }'
+
+4. CodeCommit Access (for GitOps + app repos)
+aws iam put-role-policy \
+  --role-name x-codebuild-role \
+  --policy-name CodeCommitAccess \
+  --policy-document '{
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Action": [
+          "codecommit:GitPull",
+          "codecommit:GitPush"
+        ],
+        "Resource": [
+          "<repo-arn>",
+          "<repo-arn>",
+          "<repo-arn>",
+          "<repo-arn>",
+          "<repo-arn>"
+        ]
+      }
+    ]
+  }'
+
+5. KMS Decrypt Access (for encrypted CodeCommit/ECR)
+aws iam put-role-policy \
+  --role-name x-codebuild-role \
+  --policy-name KMSAccess \
+  --policy-document '{
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Action": [
+          "kms:Decrypt",
+          "kms:DescribeKey"
+        ],
+        "Resource": "<arn>"
+      }
+    ]
+  }'
+
+6. aws codebuild create-project \
+  --name x-ui \
+  --source type=CODECOMMIT,location=https://git-codecommit.<region>.amazonaws.com/v1/repos/<name>,gitCloneDepth=1 \
+  --source-version <branch> \
+  --artifacts type=NO_ARTIFACTS \
+  --environment type=LINUX_CONTAINER,computeType=BUILD_GENERAL1_LARGE,image=aws/codebuild/standard:7.0,privilegedMode=true \
+  --service-role arn:aws:iam::<account-id>:role/x-codebuild-role \
+  --region <region>
