@@ -3,7 +3,7 @@
 Date: 24/11/2025
 After hours of troubleshooting, I found that that the client security team added our alb to waf. So, the issue was oversize handling by AWS managed rules on aws.
 
-following ai-assisted research helped me.
+following ai-assisted search helped me.
 
 a. helm upgrade nginx-ingress ingress-nginx/ingress-nginx -n ingress-nginx \
   --reuse-values \
