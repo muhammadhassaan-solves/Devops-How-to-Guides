@@ -1,0 +1,48 @@
+1. Create IAM policy for ECR access
+
+Create a policy JSON file ArgoCDECRAccess.json:
+
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ecr:GetAuthorizationToken",
+        "ecr:BatchCheckLayerAvailability",
+        "ecr:GetDownloadUrlForLayer",
+        "ecr:BatchGetImage"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+
+
+Then create the policy in AWS:
+
+aws iam create-policy \
+  --policy-name ArgoCDECRAccess \
+  --policy-document file://ArgoCDECRAccess.json
+
+
+2. Create a service account in ArgoCD namespace and attach IAM role
+eksctl create iamserviceaccount \
+  --name argocd-repo-server \
+  --namespace argocd \
+  --cluster alterna-production \
+  --attach-policy-arn arn:aws:iam::<account-id>:policy/ArgoCDECRAccess \
+  --approve \
+  --override-existing-serviceaccounts
+
+
+
+3. Patch ArgoCD repo-server Deployment
+
+Ensure the ArgoCD repo-server uses this ServiceAccount:
+
+kubectl -n argocd patch deployment argocd-repo-server \
+  -p '{"spec":{"template":{"spec":{"serviceAccountName":"argocd-repo-server"}}}}'
+
+
+kubectl -n argocd rollout restart statefulset argocd-application-controller
