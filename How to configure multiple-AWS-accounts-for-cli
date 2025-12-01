@@ -1,0 +1,11 @@
+1. For an account with SSO
+aws configure sso --profile X-dev
+nano ~/.bashrc
+alias X-dev='export AWS_PROFILE=X-dev && aws sso login --profile X-dev && aws sts get-caller-identity'
+source ~/.bashrc
+
+2. For simple account with access and secret key
+aws configure --profile Y
+nano ~/.bashrc
+alias Y='export AWS_PROFILE=Y && aws sts get-caller-identity'
+source ~/.bashrc
