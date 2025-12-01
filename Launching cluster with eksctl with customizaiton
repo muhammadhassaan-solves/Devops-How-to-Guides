@@ -1,0 +1,24 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+metadata:
+  name: X-production
+  region: <region>
+  version: "1.32"
+vpc:
+  cidr: <cidr-range>
+  nat:
+    gateway: Enable
+  clusterEndpoints:
+    publicAccess: true
+    privateAccess: true
+availabilityZones: ["<az1>", "<az2>" "<az3>"]
+managedNodeGroups:
+  - name: X-production-cluster-nodes
+    desiredCapacity: 3
+    minSize: 3
+    maxSize: 3
+    instanceTypes: ["m5.xlarge"]
+    amiFamily: AmazonLinux2
+    labels: { role: worker }
+    tags:
+      Name: X-production-node
