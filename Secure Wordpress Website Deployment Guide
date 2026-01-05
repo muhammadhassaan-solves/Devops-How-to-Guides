@@ -114,7 +114,12 @@ a. Copying wp-config.php out of the container
 docker cp $(docker ps -qf "name=wordpress"):/bitnami/wordpress/wp-config.php ./wp-config.php
 
 add the following at the top of wp-config.php
-if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] == 'https') { $_SERVER['HTTPS'] = 'on'; }
+if (
+  isset($_SERVER['HTTP_X_FORWARDED_PROTO']) &&
+  $_SERVER['HTTP_X_FORWARDED_PROTO'] == 'https'
+) {
+  $_SERVER['HTTPS'] = 'on';
+}
 
 b. Editing and copying wp-config.php back
 sudo docker cp ./wp-config.php $(docker ps -qf "name=wordpress"):/bitnami/wordpress/wp-config.php
