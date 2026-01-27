@@ -1,0 +1,88 @@
+Step 1: Create a Security Group
+Create a new Security Group in AWS.
+
+Inbound rules:
+
+Type: Custom TCP
+Protocol: TCP
+Port range: 1024 – 65535
+Source: EKS worker nodes ENI security group
+
+This allows pods to talk to MongoDB over PrivateLink.
+
+Step 2: Create Private Endpoint in MongoDB Atlas
+Log in to MongoDB Atlas
+Go to: Security → Network Access → Private Endpoint
+Click Add Private Endpoint
+
+Provide the following:
+
+Region (same as EKS)
+VPC ID where your EKS cluster is deployed
+Subnets where EKS worker nodes are running
+
+Atlas will generate a Service Name.
+
+Step 3: Create VPC Interface Endpoint (AWS)
+Use AWS CLI to create the endpoint.
+
+aws ec2 create-vpc-endpoint \
+  --vpc-id <YOUR_VPC_ID> \
+  --region <AWS_REGION> \
+  --service-name <ATLAS_PRIVATE_LINK_SERVICE_NAME> \
+  --vpc-endpoint-type Interface \
+  --subnet-ids <SUBNET_ID_1> <SUBNET_ID_2> <SUBNET_ID_3>
+This creates a PrivateLink interface endpoint inside your VPC.
+
+Step 4: Approve endpoint in Atlas
+Go to AWS Console → VPC → Endpoints
+Copy the VPC Endpoint ID
+Paste it into MongoDB Atlas Private Endpoint section
+Approve the connection
+
+Atlas and AWS are now linked.
+
+Step 5: Attach Security Group to the Endpoint
+Go to AWS → VPC → Endpoints
+Select your endpoint
+Attach the Security Group you created earlier
+
+Without this, connectivity will fail.
+
+Step 6: Test from inside the EKS cluster
+Create a temporary test pod:
+
+kubectl run mongo-test \
+  --rm -it \
+  --restart=Never \
+  --image=mongo:6.0 \
+  -- bash
+
+Step 7: Get Private Connection String from Atlas
+Go to MongoDB Atlas UI
+Click Connect → Connect to your application
+Choose Private Endpoint
+Select Shell
+Copy the connection string
+
+Step 8: Connect to MongoDB
+Inside the test pod, run the copied command:
+
+mongosh "<PRIVATE_ENDPOINT_CONNECTION_STRING>"
+If it connects successfully, your setup is correct.
+
+Common mistakes to avoid
+Using M0 or Flex clusters (because this service is available for dedicated atlas clusters)
+Wrong VPC or subnets
+Missing security group attachment
+Testing from outside the cluster
+Sometimes Network Policies in EKS causes connectivity issues
+
+Cost Considerations
+When both MongoDB Atlas and your EKS VPC are in the same AWS region, this setup typically costs around $45–50 per month.
+
+Helpful References
+MongoDB Atlas PrivateLink guide by Zhiqiang Tang (https://www.linkedin.com/pulse/mongodb-atlas-private-link-zhiqiang-tang-xccif/)
+Set Up a Private Endpoint for a Dedicated Cluster (https://www.mongodb.com/docs/atlas/security-cluster-private-endpoint/?cloud-provider=aws)
+
+Learn it. Share it. Help the next person.
