@@ -1,0 +1,83 @@
+name: Production - X-UI
+
+on:
+  push:
+    branches: prod
+
+env:
+  REGISTRY: docker.io
+  IMAGE_NAME: docker-username/x-admin
+  DEPLOY_REPO: github-username/project-production-gitops
+  DEPLOY_FILE_PATH: app/frontends/x-ui/x-ui.yaml
+  BRANCH: main
+  CI: false
+
+jobs:
+  build-push-update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source repository
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.x
+
+      - name: Install dependencies
+        run: npm install --force
+
+      - name: Build project
+        run: NODE_OPTIONS="--max-old-space-size=4096" npm run build --if-present
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_UNAME }}
+          password: ${{ secrets.DOCKER_PASS }}
+
+      - name: Build Docker image
+        run: docker build -t $IMAGE_NAME:${{ github.sha }} .
+
+      - name: Scan Docker image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.IMAGE_NAME }}:${{ github.sha }}
+          format: table
+          exit-code: '1'       # fail pipeline on CRITICAL
+          severity: CRITICAL
+
+      - name: Push Docker image
+        run: |
+          docker push $IMAGE_NAME:${{ github.sha }}
+          echo "Docker image $IMAGE_NAME:${{ github.sha }} pushed successfully"
+
+      # -------------------------
+      # GITOPS SECTION
+      # ------------------------
+      - name: Checkout GitOps Deployment Repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.DEPLOY_REPO }}
+          token: ${{ secrets.GITOPS_PAT }}
+          path: gitops
+          ref: ${{ env.BRANCH }}
+
+      - name: Update image in Kubernetes manifest
+        run: |
+          cd gitops
+          NEW_IMAGE="${IMAGE_NAME}:${{ github.sha }}"
+          echo "Updating manifest to use image: $NEW_IMAGE"
+          sed -i "s|image:.*|image: $NEW_IMAGE|" $DEPLOY_FILE_PATH
+
+      - name: Commit and push changes to GitOps repo
+        run: |
+          cd gitops
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git add $DEPLOY_FILE_PATH
+          git commit -m "Update x-ui to image $IMAGE_NAME:${{ github.sha }}"
+          git push
+
+
