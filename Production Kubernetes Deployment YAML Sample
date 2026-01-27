@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: x-backend
+  namespace: app
+spec:
+  replicas: 2
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: x-backend
+  strategy:                    
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: x-backend
+    spec:
+      serviceAccountName: sample-sa
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        runAsNonRoot: true
+      imagePullSecrets:
+        - name: dockerhub-secret
+      containers:
+        - name: x-backend
+          image: dockerhub-username/x-backend:aa8ce39c5578903b2f01d8214ccd3d6d5ae0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+          resources:
+            requests:
+              cpu: "150m"
+              memory: "512Mi"
+            limits:
+              cpu: "600m"
+              memory: "1Gi"
+          volumeMounts:
+            - name: env-file
+              mountPath: /app/.env
+              subPath: .env
+            - name: scheduler-tmp
+              mountPath: /app/schedulers/tmp
+          env:
+            - name: MONGO_URI
+              valueFrom:
+                secretKeyRef:
+                  name: prod-mongodb 
+                  key: MONGO_URI
+            - name: ORACLE_AUTH
+              valueFrom:
+                secretKeyRef:
+                  name: prod-oracle-api-auth
+                  key: ORACLE_AUTH
+      volumes:
+        - name: env-file
+          secret:
+            secretName: x-secrets
+        - name: scheduler-tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: x-backend-svc
+  namespace: app
+spec:
+  type: ClusterIP
+  selector:
+    app: x-backend
+  ports:
+    - port: 3000
+      targetPort: 3000
