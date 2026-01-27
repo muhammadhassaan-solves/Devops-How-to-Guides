@@ -1,0 +1,174 @@
+Step 1: Allow network access (Very important)
+Create or update a Security Group for MSK:
+
+Allow Custom TCP
+Port: 9098 (IAM-enabled Kafka)
+Source: EKS worker node ENI security group
+
+Step 2: Create IAM policy for MSK access
+Create a file msk-policy.json:
+
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "kafka-cluster:Connect",
+        "kafka-cluster:AlterCluster",
+        "kafka-cluster:DescribeCluster"
+      ],
+      "Resource": [
+        "<kafka-managed-cluster-arn>/*"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "kafka-cluster:*Topic*",
+        "kafka-cluster:WriteData",
+        "kafka-cluster:ReadData"
+      ],
+      "Resource": [
+        "<kafka-managed-cluster-arn>/*"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "kafka-cluster:AlterGroup",
+        "kafka-cluster:DescribeGroup"
+      ],
+      "Resource": [
+        "<kafka-managed-cluster-arn>/*"
+      ]
+    }
+  ]
+} 
+Create the policy:
+
+aws iam create-policy \
+  --policy-name msk-policy \
+  --policy-document file://msk-policy.json
+
+Step 3: Create IAM Service Account (IRSA)
+This allows pods to assume IAM roles securely.
+
+eksctl create iamserviceaccount \
+  --name msk-sa \
+  --namespace app \
+  --cluster <cluster-name> \
+  --attach-policy-arn arn:aws:iam::<account-id>:policy/msk-policy \
+  --approve \
+  --override-existing-serviceaccounts
+
+Step 4: Create a test Ubuntu pod in EKS
+This pod is only for testing and validation.
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ubuntu
+  namespace: app
+spec:
+  serviceAccountName: msk-sa
+  containers:
+    - name: ubuntu
+      image: ubuntu:24.04
+      command: ["/bin/bash", "-c", "sleep infinity"]
+Apply and access the pod:
+
+kubectl apply -f ubuntu.yaml
+kubectl exec -it ubuntu -n app -- bash
+Install basic tools:
+
+apt update && apt install -y net-tools netcat-traditional iputils-ping
+Test connectivity to MSK:
+
+nc -vz <MSK_BOOTSTRAP_BROKER> 9098
+If this fails, stop here and fix networking.
+
+Step 5: Install Kafka client inside the pod
+Inside the Ubuntu pod:
+
+apt update && apt install -y openjdk-21-jre-headless wget
+Download Kafka:
+
+wget https://dlcdn.apache.org/kafka/3.9.1/kafka_2.13-3.9.1.tgz
+tar xvf kafka_2.13-3.9.1.tgz
+cd kafka_2.13-3.9.1
+Set MSK bootstrap broker:
+
+export BOOTSTRAP=<MSK_BOOTSTRAP_BROKER>
+
+Step 6: Add AWS MSK IAM authentication library
+wget https://github.com/aws/aws-msk-iam-auth/releases/download/v2.3.2/aws-msk-iam-auth-2.3.2-all.jar -P libs/
+export CLASSPATH=libs/aws-msk-iam-auth-2.3.2-all.jar
+
+Step 7: Create Kafka client config
+cat > client.properties << EOF
+sasl.mechanism=AWS_MSK_IAM
+security.protocol=SASL_SSL
+sasl.jaas.config=software.amazon.msk.auth.iam.IAMLoginModule required;
+sasl.client.callback.handler.class=software.amazon.msk.auth.iam.IAMClientCallbackHandler
+EOF
+Set memory:
+
+export KAFKA_HEAP_OPTS="-Xmx1024m -Xms512m"
+
+Step 8: Create a Kafka topic (final test)
+bin/kafka-topics.sh --bootstrap-server $BOOTSTRAP \
+  --create \
+  --topic test-topic \
+  --partitions 1 \
+  --replication-factor 3 \
+  --command-config client.properties
+If this works, your integration is correct.
+
+Using Node.js with MSK IAM
+If your application is written in Node.js, configure Kafka like this:
+
+// config/kafka.js
+const { Kafka } = require("kafkajs");
+// New import
+const { generateAuthToken } = require("aws-msk-iam-sasl-signer-js");
+
+const region = process.env.AWS_REGION || "us-east-1";
+//Added the split functionality for fallback brokers
+const brokers = (process.env.KAFKA_BROKER).split(',');
+
+const kafka = new Kafka({
+  clientId: "x-service",
+  brokers: brokers,
+// These are new fields used for connecting to MSK especially the oauthbearer one
+  ssl: true, // Required for MSK IAM
+  sasl: {
+    mechanism: 'oauthbearer',
+    oauthBearerProvider: async () => {
+    const { token } = await generateAuthToken({ region });
+    return { value: token };
+  }
+  },
+  connectionTimeout: 30000,
+  requestTimeout: 30000,
+  retry: {
+    initialRetryTime: 100,
+    retries: 8,
+    maxRetryTime: 30000,
+    multiplier: 2,
+    factor: 0.2
+  },
+});
+module.exports = kafka;
+
+
+Helpful References
+Getting Started with Amazon Managed Streaming for Apache Kafka (MSK) Tutorial
+Create and connect to AWS Kafka MSK cluster using IAM 
+How to create MSK Cluster on AWS
+Amazon MSK Developer Guide
+Connecting EKS Pods to MSK – DEV Community
+
+If you can do this end-to-end, you are production ready.
+
+If this guide helped you, share it with someone who is still struggling. Helping others grow is also DevOps.
